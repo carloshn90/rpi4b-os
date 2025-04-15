@@ -1,20 +1,24 @@
+BUILD_DIR = build
 CFILES = $(wildcard *.c)
-OFILES = $(CFILES:.c=.o)
+OFILES = $(patsubst %.c,$(BUILD_DIR)/%.o,$(CFILES))
 GCCFLAGS = -std=c99 -ffreestanding -mgeneral-regs-only
-BUILDDIR = build
 
-all: clean kernel8.img 
-	
-boot.o: boot.S
-	mkdir -p $(BUILDDIR)
-	aarch64-linux-gnu-gcc $(GCCFLAGS) -c $< -o $(BUILDDIR)/$@
-	
-%.o: %.c
-	aarch64-linux-gnu-gcc $(GCCFLAGS) -c $< -o $(BUILDDIR)/$@
 
-kernel8.img: boot.o $(OFILES)
-	aarch64-linux-gnu-ld -nostdlib $(BUILDDIR)/boot.o $(BUILDDIR)/$(OFILES) -T link.ld -o $(BUILDDIR)/kernel8.elf
-	aarch64-linux-gnu-objcopy -O binary $(BUILDDIR)/kernel8.elf $(BUILDDIR)/kernel8.img
+all: clean $(BUILD_DIR)/kernel8.img
+
+# Ensure build directory exists before compiling
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(BUILD_DIR)/boot.o: boot.S | $(BUILD_DIR)
+	aarch64-linux-gnu-gcc $(GCCFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
+	aarch64-linux-gnu-gcc $(GCCFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/kernel8.img: $(BUILD_DIR)/boot.o $(OFILES)
+	aarch64-linux-gnu-ld -nostdlib $(BUILD_DIR)/boot.o $(OFILES) -T link.ld -o $(BUILD_DIR)/kernel8.elf
+	aarch64-linux-gnu-objcopy -O binary $(BUILD_DIR)/kernel8.elf $(BUILD_DIR)/kernel8.img
 
 clean:
-	rm -r build > /dev/null 2> /dev/null || true
+	rm -rf $(BUILD_DIR)
