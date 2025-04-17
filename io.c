@@ -1,3 +1,11 @@
+/********************************************************************************************************************
+ *                                                                                                                   *
+ *  RPi4 boots into Low Peripheral Mode by default. This maps the peripheral
+ *over the last 64mb of RAM,              * therefore they're visible to the ARM
+ *at 0x0FEnn_nnnn. For this reason the PERIPHERAL_BASE address is 0xFE000000. *
+ *                                                                                                                   *
+ *********************************************************************************************************************/
+
 // GPIO
 
 enum {
@@ -14,12 +22,13 @@ enum {
 };
 
 enum {
-  Pull_None = 0,
+  PULL_NONE = 0,
 };
 
 void mmio_write(long reg, unsigned int val) {
   *(volatile unsigned int *)reg = val;
 }
+
 unsigned int mmio_read(long reg) { return *(volatile unsigned int *)reg; }
 
 unsigned int gpio_call(unsigned int pin_number, unsigned int value,
@@ -58,7 +67,7 @@ unsigned int gpio_function(unsigned int pin_number, unsigned int value) {
 }
 
 void gpio_useAsAlt5(unsigned int pin_number) {
-  gpio_pull(pin_number, Pull_None);
+  gpio_pull(pin_number, PULL_NONE);
   gpio_function(pin_number, GPIO_FUNCTION_ALT5);
 }
 
@@ -81,6 +90,10 @@ enum {
 
 #define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK / (baud * 8)) - 1)
 
+unsigned char uart_output_queue[UART_MAX_QUEUE];
+unsigned int uart_output_queue_write = 0;
+unsigned int uart_output_queue_read = 0;
+
 void uart_init() {
   mmio_write(AUX_ENABLES, 1); // enable UART1
   mmio_write(AUX_MU_IER_REG, 0);
@@ -94,6 +107,12 @@ void uart_init() {
   gpio_useAsAlt5(15);
   mmio_write(AUX_MU_CNTL_REG, 3); // enable RX/TX
 }
+
+unsigned int uart_isOutputQueueEmpty() {
+  return uart_output_queue_read == uart_output_queue_write;
+}
+
+unsigned int uart_isReadByteReady() { return mmio_read(AUX_MU_LSR_REG) & 0x01; }
 
 unsigned int uart_isWriteByteReady() {
   return mmio_read(AUX_MU_LSR_REG) & 0x20;
@@ -110,5 +129,43 @@ void uart_writeText(char *buffer) {
     if (*buffer == '\n')
       uart_writeByteBlockingActual('\r');
     uart_writeByteBlockingActual(*buffer++);
+  }
+}
+
+void uart_loadOutputFifo() {
+  while (!uart_isOutputQueueEmpty() && uart_isWriteByteReady()) {
+    uart_writeByteBlockingActual(uart_output_queue[uart_output_queue_read]);
+    uart_output_queue_read =
+        (uart_output_queue_read + 1) & (UART_MAX_QUEUE - 1); // Dont' overrun
+  }
+}
+
+unsigned char uart_readByte() {
+  while (!uart_isReadByteReady())
+    ;
+  return (unsigned char)mmio_read(AUX_MU_IO_REG);
+}
+
+void uart_writeByteBlocking(unsigned char ch) {
+  unsigned int next =
+      (uart_output_queue_write + 1) & (UART_MAX_QUEUE - 1); // Don't overrun
+
+  while (next == uart_output_queue_read) {
+    uart_loadOutputFifo();
+  }
+
+  uart_output_queue[uart_output_queue_write] = ch;
+  uart_output_queue_write = next;
+}
+
+void uart_update() {
+  uart_loadOutputFifo();
+
+  if (uart_isReadByteReady()) {
+    unsigned char ch = uart_readByte();
+    if (ch == '\r')
+      uart_writeText("\n");
+    else
+      uart_writeByteBlocking(ch);
   }
 }
