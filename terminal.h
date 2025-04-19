@@ -1,5 +1,21 @@
-unsigned int vgapal[] = {0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA,
-                         0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF};
+unsigned int vgapal[] = {
+    0x000000,                                          // Black
+    0x0000AA,                                          // Dark blue
+    0x00AA00,                                          // Dark green
+    0x00AAAA,                                          // Cyan
+    0xAA0000,                                          // Red
+    0xAA00AA,                                          // Purple
+    0xAA5500,                                          // Brown
+    0xAAAAAA,                                          // light gray
+    0x555555,                                          // Dark gray
+    0x5555FF,                                          // Medium blue
+    0x55FF55,                                          // light Green
+    0x55FFFF,                                          // Light Cyan
+    0xFF5555,                                          // Salmon
+    0xFF55FF,                                          // Pink
+    0xFFFF55,                                          // Yellow
+    0xFFFFFF                                           // White
+};
 
 enum {
   FONT_WIDTH     = 8,
